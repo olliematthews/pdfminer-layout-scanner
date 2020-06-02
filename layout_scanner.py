@@ -128,7 +128,6 @@ def update_page_text_hash (h, lt_obj, leeway = 0.01):
     # BBOX = left, bottom, right, top
     y0 = lt_obj.bbox[1]
     x0 = lt_obj.bbox[0]
-    x1 = lt_obj.bbox[2]
     key_found = False
     for hash_y0, v in h.items():
         # We want the bottom to be aligned
@@ -136,11 +135,11 @@ def update_page_text_hash (h, lt_obj, leeway = 0.01):
             # the text inside this LT* object was positioned at the same
             # width as a prior series of text, so it belongs together
             key_found = True
-            v.update({(x0, x1) : to_bytestring(lt_obj.get_text())})
+            v.update({x0 : to_bytestring(lt_obj.get_text())})
             h[hash_y0] = v
     if not key_found:
         # New row
-        h[y0] = {(x0, x1) : to_bytestring(lt_obj.get_text())}
+        h[y0] = {x0 : to_bytestring(lt_obj.get_text())}
 
     return h
 
@@ -168,22 +167,9 @@ def parse_lt_objs (lt_objs, page_number, images_folder, text_content=None):
             text_content.append(parse_lt_objs(lt_obj, page_number, images_folder, text_content))
 
     for k, v in sorted(page_text.items(), reverse = True):
-        # Sometimes nearby text is seperated into different columns. To avoid this, we merge text which is close.
-        ordered_entries = [[val, key] for key, val in sorted(v.items())]
-        ordered_list = []
-        i = -1
-        for i in range(len(ordered_entries) - 1):
-            ordered_list.append(ordered_entries[i][0])
-            # If they are close, put them in the same column
-            if ordered_entries[i+1][1][0] - ordered_entries[i][1][1] < 1:
-                ordered_list += ordered_entries[i+1][0]
-                i += 1
-        # Don't forget to add the last column
-        if not i == len(ordered_entries) - 1:
-            ordered_list.append(ordered_entries[-1][0])
-                
         # Seperate columns with --columnbreak--
-        text_content.append('--columnbreak--'.join(ordered_list))
+        ordered_entries = [val for key, val in sorted(v.items())]
+        text_content.append('--columnbreak'.join(ordered_entries))
 
     return [txt.replace('\n','') for txt in text_content]
 
@@ -202,8 +188,6 @@ def _parse_pages (doc, images_folder):
 
     text_content = []
     for i, page in enumerate(PDFPage.create_pages(doc)):
-        if not i == 34:
-            continue
         interpreter.process_page(page)
         # receive the LTPage object for this page
         layout = device.get_result()
