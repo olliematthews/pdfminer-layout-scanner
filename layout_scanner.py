@@ -29,7 +29,7 @@ def with_pdf (pdf_doc, fn, pdf_pwd, *args):
         # connect the parser and document objects
         parser.set_document(doc)
         # supply the password for initialization
-        doc.initialize(pdf_pwd)
+        # doc.initialize(pdf_pwd)
 
         if doc.is_extractable:
             # apply the function and return the result
@@ -123,27 +123,24 @@ def to_bytestring (s, enc='utf-8'):
         else:
             return s.encode(enc)
 
-def update_page_text_hash (h, lt_obj, pct=0.2):
+def update_page_text_hash (h, lt_obj, leeway = 0.01):
     """Use the bbox x0,x1 values within pct% to produce lists of associated text within the hash"""
-
+    # BBOX = left, bottom, right, top
+    y0 = lt_obj.bbox[1]
     x0 = lt_obj.bbox[0]
     x1 = lt_obj.bbox[2]
-
     key_found = False
-    for k, v in h.items():
-        hash_x0 = k[0]
-        if x0 >= (hash_x0 * (1.0-pct)) and (hash_x0 * (1.0+pct)) >= x0:
-            hash_x1 = k[1]
-            if x1 >= (hash_x1 * (1.0-pct)) and (hash_x1 * (1.0+pct)) >= x1:
-                # the text inside this LT* object was positioned at the same
-                # width as a prior series of text, so it belongs together
-                key_found = True
-                v.append(to_bytestring(lt_obj.get_text()))
-                h[k] = v
+    for hash_y0, v in h.items():
+        # We want the bottom to be aligned
+        if y0 >= (hash_y0 - leeway) and (hash_y0 + leeway) >= y0:
+            # the text inside this LT* object was positioned at the same
+            # width as a prior series of text, so it belongs together
+            key_found = True
+            v.update({(x0, x1) : to_bytestring(lt_obj.get_text())})
+            h[hash_y0] = v
     if not key_found:
-        # the text, based on width, is a new series,
-        # so it gets its own series (entry in the hash)
-        h[(x0,x1)] = [to_bytestring(lt_obj.get_text())]
+        # New row
+        h[y0] = {(x0, x1) : to_bytestring(lt_obj.get_text())}
 
     return h
 
@@ -157,6 +154,7 @@ def parse_lt_objs (lt_objs, page_number, images_folder, text_content=None):
         if isinstance(lt_obj, LTTextBox) or isinstance(lt_obj, LTTextLine):
             # text, so arrange is logically based on its column width
             page_text = update_page_text_hash(page_text, lt_obj)
+        
         elif isinstance(lt_obj, LTImage):
             # an image, so save it to the designated folder, and note its place in the text
             saved_file = save_image(lt_obj, page_number, images_folder)
@@ -169,12 +167,25 @@ def parse_lt_objs (lt_objs, page_number, images_folder, text_content=None):
             # LTFigure objects are containers for other LT* objects, so recurse through the children
             text_content.append(parse_lt_objs(lt_obj, page_number, images_folder, text_content))
 
-    for k, v in sorted([(key,value) for (key,value) in page_text.items()]):
-        # sort the page_text hash by the keys (x0,x1 values of the bbox),
-        # which produces a top-down, left-to-right sequence of related columns
-        text_content.append(''.join(v))
+    for k, v in sorted(page_text.items(), reverse = True):
+        # Sometimes nearby text is seperated into different columns. To avoid this, we merge text which is close.
+        ordered_entries = [[val, key] for key, val in sorted(v.items())]
+        ordered_list = []
+        i = -1
+        for i in range(len(ordered_entries) - 1):
+            ordered_list.append(ordered_entries[i][0])
+            # If they are close, put them in the same column
+            if ordered_entries[i+1][1][0] - ordered_entries[i][1][1] < 1:
+                ordered_list += ordered_entries[i+1][0]
+                i += 1
+        # Don't forget to add the last column
+        if not i == len(ordered_entries) - 1:
+            ordered_list.append(ordered_entries[-1][0])
+                
+        # Seperate columns with --columnbreak--
+        text_content.append('--columnbreak--'.join(ordered_list))
 
-    return '\n'.join(text_content)
+    return [txt.replace('\n','') for txt in text_content]
 
 
 ###
@@ -191,10 +202,12 @@ def _parse_pages (doc, images_folder):
 
     text_content = []
     for i, page in enumerate(PDFPage.create_pages(doc)):
+        if not i == 34:
+            continue
         interpreter.process_page(page)
         # receive the LTPage object for this page
         layout = device.get_result()
-        # layout is an LTPage object which may contain child objects like LTTextBox, LTFigure, LTImage, etc.
+        # layout is an LTPage object which may conltain child objects like LTTextBox, LTFigure, LTImage, etc.
         text_content.append(parse_lt_objs(layout, (i+1), images_folder))
 
     return text_content
