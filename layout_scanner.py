@@ -150,22 +150,11 @@ def parse_lt_objs (lt_objs, page_number, images_folder, text_content=None):
 
     page_text = {} # k=(x0, x1) of the bbox, v=list of text strings within that bbox width (physical column)
     for lt_obj in lt_objs:
+        # We only care about text
         if isinstance(lt_obj, LTTextBox) or isinstance(lt_obj, LTTextLine):
             # text, so arrange is logically based on its column width
             page_text = update_page_text_hash(page_text, lt_obj)
         
-        elif isinstance(lt_obj, LTImage):
-            # an image, so save it to the designated folder, and note its place in the text
-            saved_file = save_image(lt_obj, page_number, images_folder)
-            if saved_file:
-                # use html style <img /> tag to mark the position of the image within the text
-                text_content.append('<img src="'+os.path.join(images_folder, saved_file)+'" />')
-            else:
-                print >> sys.stderr, "error saving image on page", page_number, lt_obj.__repr__
-        elif isinstance(lt_obj, LTFigure):
-            # LTFigure objects are containers for other LT* objects, so recurse through the children
-            text_content.append(parse_lt_objs(lt_obj, page_number, images_folder, text_content))
-
     for k, v in sorted(page_text.items(), reverse = True):
         # Seperate columns with --columnbreak--
         ordered_entries = [val for key, val in sorted(v.items())]
