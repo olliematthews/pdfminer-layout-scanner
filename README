@@ -1,4 +1,6 @@
 # PDFMiner PDF Parser
 
 
-This program will parse a fund PDF from Orcadia, and extract the information needed for all subfunds. 
+This program will parse a fund PDF from Orcadia, and extract the information needed for all subfunds.
+
+To run the example, save an orcadia pdf as 'orcadia_pdf.pdf' then run analyse_pdf.py. The result will be saved in 'save_file.csv'.
