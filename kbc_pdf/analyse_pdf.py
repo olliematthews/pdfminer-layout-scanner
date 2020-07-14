@@ -17,9 +17,9 @@ with open(country_file, 'r') as file:
         countries.append(line.strip('\n').lower())
         
 ''' Loading the pdf takes ages, so for ease of use it has been saved in a p file'''
-# pages = layout_scanner.get_pages('AR_BF029_EN.pdf', line_margin = 0.2)
+# pages = layout_scanner.get_pages('AR_BF029_EN.pdf', line_margin = 0.3)
 # pickle.dump(pages, open('pages_long.p','wb'))
-pages = pickle.load(open('pages_later.p','rb'))
+pages = pickle.load(open('pages_long.p','rb'))
 
 table_pages = []
 
@@ -94,6 +94,9 @@ for page in table_pages:
         if len(text) == 1:
             title_text = text[0].strip(' ')
             if country_level:
+                if not title_text.lower() in countries:
+                    side_columns.pop()
+                    country_level = False
                 side_columns[-1] = title_text
             else:
                 side_columns.append(title_text)
@@ -126,5 +129,4 @@ with open(csv_file,'a', newline = '') as file:
     for row in rows:
         writer.writerow(row)
         
-        
-
+    

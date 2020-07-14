@@ -3,7 +3,7 @@
 import sys
 import os
 from binascii import b2a_hex
-
+import numpy as np
 
 ###
 ### pdf-miner requirements
@@ -123,13 +123,22 @@ def parse_lt_objs (lt_objs, page_number, images_folder, text_content=None):
             font_info = {'size' : lt_obj._objs[0].size,
                          'font' : lt_obj._objs[0].fontname}
             page_text = update_page_text_hash(page_text, lt_obj, font_info)
+            
+    last_bottom = np.nan
     for k, v in sorted(page_text.items(), reverse = True):
         # Seperate columns with --columnbreak--
-        ordered_entries = [val for key, val in sorted(v.items())]
-        text = [entry['text'].strip('\n').replace('\n',' ') for entry in ordered_entries]
-        text_content.append({'text' : text,
-                             'font_info' : ordered_entries[0]['font_info']})
-
+        top = k[1]
+        
+        # This part addresses a problem in pdfminer - it struggles to group 
+        # lines sometimes. Note this is not a very robust solution!!
+        if last_bottom - top < 1 and len(v.values()) == 1:
+            text_content[-1]['text'][0] += ' ' + next(iter(v.values()))['text']
+        else:
+            ordered_entries = [val for key, val in sorted(v.items())]
+            text = [entry['text'].strip('\n').replace('\n',' ') for entry in ordered_entries]
+            text_content.append({'text' : text,
+                                 'font_info' : ordered_entries[0]['font_info']})
+        last_bottom = k[0]
     return text_content
 
 
@@ -149,8 +158,7 @@ def _parse_pages (doc, images_folder, line_margin):
     for i, page in enumerate(PDFPage.create_pages(doc)):
         if i == 25:
             continue
-        # if i <= 600:
-        #     continue
+
         print(i)
         
         # if not i == 37:
