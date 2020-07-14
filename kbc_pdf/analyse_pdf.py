@@ -17,7 +17,7 @@ with open(country_file, 'r') as file:
         countries.append(line.strip('\n').lower())
         
 ''' Loading the pdf takes ages, so for ease of use it has been saved in a p file'''
-# pages = layout_scanner.get_pages('AR_BF029_EN.pdf', line_margin = 0.3)
+pages = layout_scanner.get_pages('AR_BF029_EN.pdf', line_margin = 0.3)
 # pickle.dump(pages, open('pages_long.p','wb'))
 pages = pickle.load(open('pages_long.p','rb'))
 
@@ -66,8 +66,6 @@ for page in table_pages:
         lines.append(l)
         
         
-    line_number = 0
-    
     # Extract the fund name if it is there
     if lines[0]['font_info']['size'] == 20.0:
         line_number = 1
@@ -81,31 +79,32 @@ for page in table_pages:
         fund = title[fund_start:]
         # Skip the table header
         line_number += 1
-        side_columns = []
-        country_level = False
+        country = 'NA'
+    else:
+        # If we are continuing onto another page, we just read from the first line
+        line_number = 0
 
-    
+
+    # Now we read through each line of the table, and decide whether to ignore
+    # it or add it to the rows in our table.
     for line in lines[line_number:]:
-        text = [entry.strip(' ') for entry in line['text']]
+        text = [entry.strip(' ').strip('\n') for entry in line['text']]
+        
+        # 'TOTAL NET ASSETS' indicates the end of the table. We break if we 
+        # see it.
         if 'TOTAL NET ASSETS' in text:
             break
         
-        # This indicates a change in the value of a 'side_column' we assign the relevant one
+        # We can ignore these or change the country entry
         if len(text) == 1:
             title_text = text[0].strip(' ')
-            if country_level:
-                if not title_text.lower() in countries:
-                    side_columns.pop()
-                    country_level = False
-                side_columns[-1] = title_text
-            else:
-                side_columns.append(title_text)
-                if title_text.lower() in countries:
-                    country_level = True                
+            if title_text.lower() in countries:
+                country = title_text
             continue
+        
+        
+        # These are usually totals, we can ignore them
         elif len(text) < 5:
-            side_columns.pop()
-            country_level = False
             continue
         
         else:
@@ -113,20 +112,21 @@ for page in table_pages:
             # Else, we have a valid row
             # On these pdfs, commas represent decimal points, can get rid of full stops
             
-            if float(text[1].replace(',','')) > 1:
+            if abs(float(text[1].replace(',',''))) > 1:
                 save_text = [text[0], text[-1]]
             else:
                 # For tiny amounts, the last column is left blank. Intead, we
                 # set it to 0
                 save_text = [text[0], 0]
             
-            row = [fund, side_columns[-1]]
+            row = [fund, country]
             
             row.extend(save_text)
             rows.append(row) 
 
 head = ['Fund', 'Country', 'Name', '% Net Assets']
 
+# Write to csv
 
 with open(csv_file,'w', newline = '') as file:
     writer = csv.writer(file)

@@ -44,28 +44,6 @@ def with_pdf (pdf_doc, fn, pdf_pwd, *args):
 
 
 ###
-### Table of Contents
-###
-
-def _parse_toc (doc):
-    """With an open PDFDocument object, get the table of contents (toc) data
-    [this is a higher-order function to be passed to with_pdf()]"""
-    toc = []
-    try:
-        outlines = doc.get_outlines()
-        for (level,title,dest,a,se) in outlines:
-            toc.append( (level, title) )
-    except PDFNoOutlines:
-        pass
-    return toc
-
-def get_toc (pdf_doc, pdf_pwd=''):
-    """Return the table of contents (toc), if any, for this pdf file"""
-    return with_pdf(pdf_doc, _parse_toc, pdf_pwd)
-
-
-
-###
 ### Extracting Text
 ###
 
@@ -79,18 +57,18 @@ def to_bytestring (s, enc='utf-8'):
             return s.encode(enc)
 
 def update_page_text_hash (h, lt_obj, font_info, leeway = 0.01):
-    """Use the bbox x0,x1 values within pct% to produce lists of associated text within the hash"""
+    # Group the textbox in with a ilne if it belongs
     # BBOX = left, bottom, right, top
     y0 = lt_obj.bbox[1]
     y1 = lt_obj.bbox[3]
     x0 = lt_obj.bbox[0]
+    
+    
     key_found = False
     for (hash_y0,hash_y1), v in h.items():
-        # We want the bottom to be aligned
+        # If two textboxes overlap horizontally, we put them in a line together
+        # (we allow for some leeway to this rule)
         if not (y0 >= hash_y1 + leeway or y1 <= hash_y0 - leeway):
-        # y0 >= (hash_y0 - leeway) and (hash_y1 + leeway) >= y0 or y1 >= (hash_y0 - leeway) and (hash_y1 + leeway) >= y1 :
-            # the text inside this LT* object was positioned at the same
-            # width as a prior series of text, so it belongs together
             key_found = True
             v.update({x0 : {
                 'text' : to_bytestring(lt_obj.get_text()),
@@ -99,7 +77,8 @@ def update_page_text_hash (h, lt_obj, font_info, leeway = 0.01):
             h[(min([hash_y0, y0]),max([hash_y1,y1]))] = v
             break
     if not key_found:
-        # New row
+        # If the textbox does not belong to an existing line, we create a new 
+        # one
         h[(y0,y1)] = {x0 : {
             'text' : to_bytestring(lt_obj.get_text()),
             'font_info' : font_info}}
@@ -111,22 +90,23 @@ def parse_lt_objs (lt_objs, page_number, images_folder, text_content=None):
     if text_content is None:
         text_content = []
 
-    page_text = {} # k=(x0, x1) of the bbox, v=list of text strings within that bbox width (physical column)
+    page_text = {}
     for lt_obj in lt_objs:
         # We only care about text
-        # text, so arrange is logically based on its column width
         if isinstance(lt_obj, LTTextBox):
+            # We save some info about the font which could be useful
             font_info = {'size' : lt_obj._objs[0]._objs[0].size,
                          'font' : lt_obj._objs[0]._objs[0].fontname}
             page_text = update_page_text_hash(page_text, lt_obj, font_info)
-        if isinstance(lt_obj, LTTextLine):
+        elif isinstance(lt_obj, LTTextLine):
             font_info = {'size' : lt_obj._objs[0].size,
                          'font' : lt_obj._objs[0].fontname}
             page_text = update_page_text_hash(page_text, lt_obj, font_info)
             
+    # Keep track of the bottom of the last row. This is to ensure lines which
+    # are close together are grouped together.
     last_bottom = np.nan
     for k, v in sorted(page_text.items(), reverse = True):
-        # Seperate columns with --columnbreak--
         top = k[1]
         
         # This part addresses a problem in pdfminer - it struggles to group 
@@ -156,13 +136,13 @@ def _parse_pages (doc, images_folder, line_margin):
 
     text_content = []
     for i, page in enumerate(PDFPage.create_pages(doc)):
+        
+        # TODO look into this. For some reason, page 25 throws up errors.
         if i == 25:
             continue
 
         print(i)
         
-        # if not i == 37:
-        #     continue
         interpreter.process_page(page)
         # receive the LTPage object for this page
         layout = device.get_result()
