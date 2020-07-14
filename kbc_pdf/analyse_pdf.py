@@ -112,17 +112,23 @@ for page in table_pages:
             
             # Else, we have a valid row
             # On these pdfs, commas represent decimal points, can get rid of full stops
-            save_text = [text[0], text[2], text[4]]
             
-            row = [fund, side_columns[-2], side_columns[-1]]
+            if float(text[1].replace(',','')) > 1:
+                save_text = [text[0], text[-1]]
+            else:
+                # For tiny amounts, the last column is left blank. Intead, we
+                # set it to 0
+                save_text = [text[0], 0]
+            
+            row = [fund, side_columns[-1]]
             
             row.extend(save_text)
             rows.append(row) 
 
-head = ['Fund', 'Asset Type', 'Country', 'Name', 'Currency','Evaluation']
+head = ['Fund', 'Country', 'Name', '% Net Assets']
 
 
-with open(csv_file,'a', newline = '') as file:
+with open(csv_file,'w', newline = '') as file:
     writer = csv.writer(file)
     writer.writerow(head)
 
