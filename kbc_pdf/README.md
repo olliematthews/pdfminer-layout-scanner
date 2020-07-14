@@ -1,6 +1,6 @@
 # KBC PDF Parser
 
-This is a parser based off PDFMiner, which works by splitting pages into lines and then columns. The aim is to parse PDFs like that found at The general steps are:
+This is a parser based off PDFMiner, which works by splitting pages into lines and then columns. The aim is to parse PDFs like that found at https://multimediafiles.kbcgroup.eu/ng/feed/am/funds/AR/AR_BF029_EN.pdf . The general steps are:
 
 * Use PDFMiner to extract lines and columns from pages. This stage is based off of the repository found at https://github.com/dpapathanasiou/pdfminer-layout-scanner .
 * Find the pages where the tables of interest are. This is done by searching for "Composition of the assets and key figures" in the first line of the page, and then taking all the pages until the phrase "TOTAL NET ASSETS" appears, which marks the end of the table.
