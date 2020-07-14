@@ -17,7 +17,7 @@ with open(country_file, 'r') as file:
         countries.append(line.strip('\n').lower())
         
 ''' Loading the pdf takes ages, so for ease of use it has been saved in a p file'''
-pages = layout_scanner.get_pages('AR_BF029_EN.pdf', line_margin = 0.3)
+# pages = layout_scanner.get_pages('AR_BF029_EN.pdf', line_margin = 0.3)
 # pickle.dump(pages, open('pages_long.p','wb'))
 pages = pickle.load(open('pages_long.p','rb'))
 
